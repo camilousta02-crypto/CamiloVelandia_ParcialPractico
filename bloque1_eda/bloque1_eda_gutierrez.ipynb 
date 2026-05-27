@@ -1,0 +1,285 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "authorship_tag": "ABX9TyOdz4Gr2wW9pBi1+CVtnMHw",
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/camilousta02-crypto/CamiloVelandia_ParcialPractico/blob/main/bloque1_eda/bloque1_eda_gutierrez.ipynb%20\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 1,
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "v1R8i17vZFvt",
+        "outputId": "cc26f399-a774-44e9-b67c-d7e49f148f44"
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\u001b[2K     \u001b[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m \u001b[32m316.9/316.9 MB\u001b[0m \u001b[31m4.9 MB/s\u001b[0m eta \u001b[36m0:00:00\u001b[0m\n",
+            "\u001b[?25h  Preparing metadata (setup.py) ... \u001b[?25l\u001b[?25hdone\n",
+            "\u001b[2K   \u001b[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m \u001b[32m200.5/200.5 kB\u001b[0m \u001b[31m15.4 MB/s\u001b[0m eta \u001b[36m0:00:00\u001b[0m\n",
+            "\u001b[?25h  Building wheel for pyspark (setup.py) ... \u001b[?25l\u001b[?25hdone\n",
+            "\u001b[31mERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\n",
+            "dataproc-spark-connect 1.1.0 requires pyspark[connect]~=4.0.0, but you have pyspark 3.5.0 which is incompatible.\u001b[0m\u001b[31m\n",
+            "\u001b[0m✅ Spark versión: 3.5.0\n",
+            "✅ Java instalado y configurado\n"
+          ]
+        }
+      ],
+      "source": [
+        "# ============================================\n",
+        "# CELDA 0: Instalación de dependencias\n",
+        "# ============================================\n",
+        "!apt-get install openjdk-11-jdk-headless -qq > /dev/null\n",
+        "!pip install -q pyspark==3.5.0\n",
+        "!pip install -q findspark\n",
+        "!pip install -q pandas matplotlib seaborn wordcloud scikit-learn transformers datasets\n",
+        "\n",
+        "import findspark\n",
+        "findspark.init()\n",
+        "\n",
+        "from pyspark.sql import SparkSession\n",
+        "import pyspark.sql.functions as F\n",
+        "from pyspark.sql.types import *\n",
+        "import pandas as pd\n",
+        "import numpy as np\n",
+        "import matplotlib.pyplot as plt\n",
+        "import seaborn as sns\n",
+        "\n",
+        "# Configurar Spark para Colab\n",
+        "spark = SparkSession.builder \\\n",
+        "    .appName(\"SIPSA_ProyectoFinal\") \\\n",
+        "    .config(\"spark.driver.memory\", \"4g\") \\\n",
+        "    .config(\"spark.executor.memory\", \"4g\") \\\n",
+        "    .getOrCreate()\n",
+        "\n",
+        "print(\"✅ Spark versión:\", spark.version)\n",
+        "print(\"✅ Java instalado y configurado\")"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from google.colab import drive\n",
+        "drive.mount('/content/drive')"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "VaVCPwjqc_Mf",
+        "outputId": "a9aff559-b42d-4f4e-f837-b2e6ccf004c5"
+      },
+      "execution_count": 5,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Drive already mounted at /content/drive; to attempt to forcibly remount, call drive.mount(\"/content/drive\", force_remount=True).\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# ============================================\n",
+        "# CELDA 1: Descargar dataset SIPSA\n",
+        "# ============================================\n",
+        "import urllib.request\n",
+        "import zipfile\n",
+        "import os\n",
+        "\n",
+        "# Crear carpeta de trabajo\n",
+        "!mkdir -p /content/data\n",
+        "\n",
+        "ruta_drive = \"/content/drive/MyDrive/Marchine learning/BaseDatos-SIPSA_P-Mensual-2013_2017/Mensual_2013_2017.csv\"\n",
+        "\n",
+        "# Verificar si existe\n",
+        "import os\n",
+        "if os.path.exists(ruta_drive):\n",
+        "    print(\"✅ Dataset encontrado en Drive\")\n",
+        "    ruta_dataset = ruta_drive\n",
+        "else:\n",
+        "    print(\"⚠️ No encontrado en Drive. Sube el archivo manualmente.\")\n",
+        "    # Subir archivo manualmente\n",
+        "    from google.colab import files\n",
+        "    uploaded = files.upload()\n",
+        "    ruta_dataset = list(uploaded.keys())[0]"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "H7X_hqLHbi6m",
+        "outputId": "67202484-1a2f-47a4-f2d5-50450a14c8eb"
+      },
+      "execution_count": 6,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "✅ Dataset encontrado en Drive\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# ============================================\n",
+        "# CELDA 2: Cargar dataset en PySpark\n",
+        "# ============================================\n",
+        "\n",
+        "# Definir esquema basado en las variables del SIPSA\n",
+        "# Variables: año, mes, código departamento, nombre departamento,\n",
+        "# código municipio, nombre municipio, nombre producto, variedad,\n",
+        "# unidad empaque, equivalencia kg, precio promedio\n",
+        "\n",
+        "schema = StructType([\n",
+        "    StructField(\"anio\", IntegerType(), True),\n",
+        "    StructField(\"mes\", IntegerType(), True),\n",
+        "    StructField(\"cod_depto\", StringType(), True),\n",
+        "    StructField(\"nom_depto\", StringType(), True),\n",
+        "    StructField(\"cod_mpio\", StringType(), True),\n",
+        "    StructField(\"nom_mpio\", StringType(), True),\n",
+        "    StructField(\"grupo\", StringType(), True),        # Verduras, frutas, tubérculos, etc.\n",
+        "    StructField(\"producto\", StringType(), True),\n",
+        "    StructField(\"variedad\", StringType(), True),\n",
+        "    StructField(\"unidad_empaque\", StringType(), True),\n",
+        "    StructField(\"equiv_kg\", DoubleType(), True),      # Equivalencia en kilogramos\n",
+        "    StructField(\"precio_promedio\", DoubleType(), True) # Precio promedio mayorista\n",
+        "])\n",
+        "\n",
+        "# Cargar datos\n",
+        "df_sipsa = spark.read.csv(ruta_dataset, schema=schema, header=True, sep=\";\")\n",
+        "\n",
+        "# Información básica\n",
+        "print(\"=\" * 60)\n",
+        "print(\"INFORMACIÓN DEL DATASET SIPSA\")\n",
+        "print(\"=\" * 60)\n",
+        "print(f\"Total de registros: {df_sipsa.count():,}\")\n",
+        "print(f\"Total de columnas: {len(df_sipsa.columns)}\")\n",
+        "print(\"\\nEsquema:\")\n",
+        "df_sipsa.printSchema()\n",
+        "print(\"\\nPrimeras 10 filas:\")\n",
+        "df_sipsa.show(10, truncate=False)"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "OsrIfGqgdMEW",
+        "outputId": "b223cc6c-28fc-4ef5-a598-8a32dd316c5b"
+      },
+      "execution_count": 7,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "============================================================\n",
+            "INFORMACIÓN DEL DATASET SIPSA\n",
+            "============================================================\n",
+            "Total de registros: 281,386\n",
+            "Total de columnas: 12\n",
+            "\n",
+            "Esquema:\n",
+            "root\n",
+            " |-- anio: integer (nullable = true)\n",
+            " |-- mes: integer (nullable = true)\n",
+            " |-- cod_depto: string (nullable = true)\n",
+            " |-- nom_depto: string (nullable = true)\n",
+            " |-- cod_mpio: string (nullable = true)\n",
+            " |-- nom_mpio: string (nullable = true)\n",
+            " |-- grupo: string (nullable = true)\n",
+            " |-- producto: string (nullable = true)\n",
+            " |-- variedad: string (nullable = true)\n",
+            " |-- unidad_empaque: string (nullable = true)\n",
+            " |-- equiv_kg: double (nullable = true)\n",
+            " |-- precio_promedio: double (nullable = true)\n",
+            "\n",
+            "\n",
+            "Primeras 10 filas:\n",
+            "+----+----+---------------------------+------------------------------------------------+--------+--------+-----+--------+--------+--------------+--------+---------------+\n",
+            "|anio|mes |cod_depto                  |nom_depto                                       |cod_mpio|nom_mpio|grupo|producto|variedad|unidad_empaque|equiv_kg|precio_promedio|\n",
+            "+----+----+---------------------------+------------------------------------------------+--------+--------+-----+--------+--------+--------------+--------+---------------+\n",
+            "|NULL|NULL|Alas de pollo con costillar|Barranquilla, Barranquillita                    |3073    |NULL    |NULL |NULL    |NULL    |NULL          |NULL    |NULL           |\n",
+            "|NULL|NULL|Alas de pollo con costillar|Barranquilla, Granabastos                       |3067    |NULL    |NULL |NULL    |NULL    |NULL          |NULL    |NULL           |\n",
+            "|NULL|NULL|Alas de pollo con costillar|Bogot�, D.C., Frigor�fico Ble Ltda.             |2967    |NULL    |NULL |NULL    |NULL    |NULL          |NULL    |NULL           |\n",
+            "|NULL|NULL|Alas de pollo con costillar|Bogot�, D.C., Frigor�fico Guadalupe             |2560    |NULL    |NULL |NULL    |NULL    |NULL          |NULL    |NULL           |\n",
+            "|NULL|NULL|Alas de pollo con costillar|Cartagena, Bazurto                              |3429    |NULL    |NULL |NULL    |NULL    |NULL          |NULL    |NULL           |\n",
+            "|NULL|NULL|Alas de pollo con costillar|Ibagu�, Plaza La 21                             |4307    |NULL    |NULL |NULL    |NULL    |NULL          |NULL    |NULL           |\n",
+            "|NULL|NULL|Alas de pollo con costillar|\"Medell�n, Plaza Minorista \"\"Jos� Mar�a Villa\"\"\"|3717    |NULL    |NULL |NULL    |NULL    |NULL          |NULL    |NULL           |\n",
+            "|NULL|NULL|Alas de pollo con costillar|Monter�a, Mercado del Sur                       |3800    |NULL    |NULL |NULL    |NULL    |NULL          |NULL    |NULL           |\n",
+            "|NULL|NULL|Alas de pollo con costillar|Sincelejo, Nuevo Mercado                        |3780    |NULL    |NULL |NULL    |NULL    |NULL          |NULL    |NULL           |\n",
+            "|NULL|NULL|Alas de pollo con costillar|Tulu� (Valle del Cauca)                         |4500    |NULL    |NULL |NULL    |NULL    |NULL          |NULL    |NULL           |\n",
+            "+----+----+---------------------------+------------------------------------------------+--------+--------+-----+--------+--------+--------------+--------+---------------+\n",
+            "only showing top 10 rows\n",
+            "\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# ============================================\n",
+        "# CELDA: Configurar Git en Colab\n",
+        "# ============================================\n",
+        "!git config --global user.email \"camilo.usta02@gmail.com\"\n",
+        "!git config --global user.name \"camilousta02-crypto\"\n",
+        "\n",
+        "# Clonar tu repositorio\n",
+        "!git clone https://github.com/camilousta02-crypto/proyecto_final_Velandia_Camilo.git\n",
+        "%cd proyecto_final_Velandia_Camilo"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "Nv2rWd54h8hn",
+        "outputId": "ade640f8-b61c-4d29-e5b5-079b2bfee085"
+      },
+      "execution_count": 9,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "fatal: destination path 'proyecto_final_Velandia_Camilo' already exists and is not an empty directory.\n",
+            "/content/proyecto_final_Velandia_Camilo\n"
+          ]
+        }
+      ]
+    }
+  ]
+}
